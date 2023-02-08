@@ -20,7 +20,7 @@ func Items(ctx context.Context, urlstr string, opts ...Option) ([]Item, error) {
 
 // Get retrieves the item.
 func Get(ctx context.Context, urlstr string, opts ...Option) ([]byte, error) {
-	return New(append([]Option{WithURL(urlstr)}, opts...)...).Get(ctx)
+	return New(opts...).Get(ctx, urlstr)
 }
 
 // Walk walks all items.

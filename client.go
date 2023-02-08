@@ -194,12 +194,8 @@ func (cl *Client) Items(ctx context.Context, paths ...string) ([]Item, error) {
 	return cl.list(ctx, urlstr, href, true)
 }
 
-// Get retrieves a file.
-func (cl *Client) Get(ctx context.Context, paths ...string) ([]byte, error) {
-	urlstr, _, err := cl.Href(paths...)
-	if err != nil {
-		return nil, err
-	}
+// Get retrieves the url.
+func (cl *Client) Get(ctx context.Context, urlstr string) ([]byte, error) {
 	if strings.HasSuffix(urlstr, "/") {
 		return nil, fmt.Errorf("invalid url %s", urlstr)
 	}
@@ -220,6 +216,15 @@ func (cl *Client) Get(ctx context.Context, paths ...string) ([]byte, error) {
 		return nil, fmt.Errorf("status != %d", http.StatusOK)
 	}
 	return io.ReadAll(res.Body)
+}
+
+// JoinGet retrieves a file.
+func (cl *Client) JoinGet(ctx context.Context, paths ...string) ([]byte, error) {
+	urlstr, _, err := cl.Href(paths...)
+	if err != nil {
+		return nil, err
+	}
+	return cl.Get(ctx, urlstr)
 }
 
 // Walk walks the root.
