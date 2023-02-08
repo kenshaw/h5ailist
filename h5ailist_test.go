@@ -11,7 +11,7 @@ func TestList(t *testing.T) {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
 	for i, item := range items {
-		t.Logf("%d: %v %q %d", i, item.Time, item.Href, item.FileSize())
+		t.Logf("%d: %v %q %d %s", i, item.Time, item.Href, item.FileSize(), item.URL)
 	}
 }
 
@@ -21,7 +21,7 @@ func TestItems(t *testing.T) {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
 	for i, item := range items {
-		t.Logf("%d: %v %q %d", i, item.Time, item.Href, item.FileSize())
+		t.Logf("%d: %v %q %d %s", i, item.Time, item.Href, item.FileSize(), item.URL)
 	}
 }
 
@@ -40,7 +40,7 @@ func TestWalk(t *testing.T) {
 	var directories, files, size int64
 	for i, item := range items {
 		sz := item.FileSize()
-		t.Logf("%d: %v %q %d", i, item.Time, item.Href, sz)
+		t.Logf("%d: %v %q %d %s", i, item.Time, item.Href, sz, item.URL)
 		if item.IsDir() {
 			directories++
 		} else {

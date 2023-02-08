@@ -147,7 +147,15 @@ func (cl *Client) list(ctx context.Context, urlstr, href string, filter bool) ([
 	}, &res); err != nil {
 		return nil, err
 	}
+	u, err := url.Parse(urlstr)
+	if err != nil {
+		return nil, err
+	}
 	if !filter {
+		for i := 0; i < len(res.Items); i++ {
+			u.Path = res.Items[i].Href
+			res.Items[i].URL = u.String()
+		}
 		return res.Items, nil
 	}
 	h, err := url.PathUnescape(href)
@@ -160,6 +168,8 @@ func (cl *Client) list(ctx context.Context, urlstr, href string, filter bool) ([
 			return nil, err
 		}
 		if item.Href != h && strings.HasPrefix(item.Href, h) {
+			u.Path = item.Href
+			item.URL = u.String()
 			items = append(items, item)
 		}
 	}
@@ -228,6 +238,7 @@ func (cl *Client) Walk(ctx context.Context, root string, fn WalkFunc) error {
 		err = fn(root, nil, err)
 	} else {
 		err = cl.walk(ctx, root, &Item{
+			URL:     urlstr,
 			Fetched: true,
 			Href:    href,
 			Managed: true,
@@ -278,6 +289,7 @@ type Item struct {
 	Managed bool   `json:"managed,omitempty"`
 	Size    *int64 `json:"size,omitempty"`
 	Time    Time   `json:"time,omitempty"`
+	URL     string `json:"-"`
 }
 
 // IsDir returns true when the item is a directory.
