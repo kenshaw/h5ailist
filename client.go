@@ -81,7 +81,7 @@ func (cl *Client) do(ctx context.Context, method, urlstr string, request, v inte
 	defer res.Body.Close()
 	switch {
 	case res.StatusCode != http.StatusOK:
-		return fmt.Errorf("status != %d", http.StatusOK)
+		return fmt.Errorf("status %d (%s) != %d", res.StatusCode, http.StatusText(res.StatusCode), http.StatusOK)
 	case v == nil:
 		return nil
 	}
@@ -213,7 +213,7 @@ func (cl *Client) Get(ctx context.Context, urlstr string) ([]byte, error) {
 	defer res.Body.Close()
 	switch {
 	case res.StatusCode != http.StatusOK:
-		return nil, fmt.Errorf("status != %d", http.StatusOK)
+		return nil, fmt.Errorf("status %d (%s) != %d", res.StatusCode, http.StatusText(res.StatusCode), http.StatusOK)
 	}
 	return io.ReadAll(res.Body)
 }
