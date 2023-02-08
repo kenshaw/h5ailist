@@ -1,7 +1,7 @@
 # About
 
 Package `h5ailist` is a simple client for retrieving files/directories from a
-remote [h5ai]() list.
+remote [h5ai](https://larsjung.de/h5ai/) directory list frontend.
 
 ## Using
 
