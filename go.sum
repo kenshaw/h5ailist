@@ -1,0 +1,4 @@
+github.com/kenshaw/httplog v0.4.2 h1:Qw/IDzAYY4xjWbWem7TLA5XGOOypXBvA+XLt20QSME8=
+github.com/kenshaw/httplog v0.4.2/go.mod h1:4nLFROmXyILSgXwWTq/+5GwwQe8N4+RoUobEjcuKoro=
+golang.org/x/net v0.5.0 h1:GyT4nK/YDHSqa1c4753ouYCDajOYKTja9Xb/OHtgvSw=
+golang.org/x/net v0.5.0/go.mod h1:DivGGAXEgPSlEBzxGzZI+ZLohi+xUj054jfeKui00ws=
