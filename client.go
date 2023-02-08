@@ -25,7 +25,7 @@ type Client struct {
 	UserAgent string
 	Transport http.RoundTripper
 	Jar       http.CookieJar
-	res       map[string]error
+	err       error
 	mu        sync.Mutex
 }
 
@@ -34,7 +34,6 @@ func New(opts ...Option) *Client {
 	cl := &Client{
 		Transport: http.DefaultTransport,
 		UserAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36",
-		res:       make(map[string]error),
 	}
 	for _, o := range opts {
 		o(cl)
@@ -51,21 +50,31 @@ func New(opts ...Option) *Client {
 	return cl
 }
 
+// BuildRequest builds a http request.
+func (cl *Client) BuildRequest(method, urlstr string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequest(method, urlstr, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Referer", req.URL.Scheme+"://"+req.URL.Host)
+	if cl.UserAgent != "" {
+		req.Header.Set("User-Agent", cl.UserAgent)
+	}
+	return req, nil
+}
+
 // do executes a request against the context and client.
 func (cl *Client) do(ctx context.Context, method, urlstr string, request, v interface{}) error {
 	buf := bytes.NewBuffer(nil)
 	if err := json.NewEncoder(buf).Encode(request); err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, method, urlstr, buf)
+	req, err := cl.BuildRequest(method, urlstr, buf)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	if cl.UserAgent != "" {
-		req.Header.Set("User-Agent", cl.UserAgent)
-	}
-	res, err := cl.cl.Do(req)
+	res, err := cl.cl.Do(req.WithContext(ctx))
 	if err != nil {
 		return err
 	}
@@ -85,8 +94,15 @@ func (cl *Client) do(ctx context.Context, method, urlstr string, request, v inte
 func (cl *Client) init(ctx context.Context, urlstr string) error {
 	cl.mu.Lock()
 	defer cl.mu.Unlock()
-	if err, ok := cl.res[urlstr]; ok {
+	if err := cl.err; err != nil {
 		return err
+	}
+	if !strings.HasSuffix(urlstr, "/") {
+		if i := strings.LastIndexByte(urlstr, '/'); i != -1 {
+			urlstr = urlstr[:i+1]
+		} else {
+			urlstr += "/"
+		}
 	}
 	err := cl.do(
 		ctx,
@@ -102,7 +118,7 @@ func (cl *Client) init(ctx context.Context, urlstr string) error {
 		},
 		nil,
 	)
-	cl.res[urlstr] = err
+	cl.err = err
 	return err
 }
 
@@ -112,16 +128,6 @@ func (cl *Client) Do(ctx context.Context, method, urlstr string, request, v inte
 		return err
 	}
 	return cl.do(ctx, method, urlstr, request, v)
-}
-
-// Href returns the href path for the URL combined with paths.
-func (cl *Client) Href(paths ...string) (string, string, error) {
-	u, err := url.Parse(cl.URL)
-	if err != nil {
-		return "", "", err
-	}
-	u = u.JoinPath(paths...)
-	return u.String(), u.EscapedPath(), nil
 }
 
 // list returns the list at the path.
@@ -184,11 +190,17 @@ func (cl *Client) Get(ctx context.Context, paths ...string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, "GET", urlstr, nil)
+	if strings.HasSuffix(urlstr, "/") {
+		return nil, fmt.Errorf("invalid url %s", urlstr)
+	}
+	if err := cl.init(ctx, urlstr); err != nil {
+		return nil, err
+	}
+	req, err := cl.BuildRequest("GET", urlstr, nil)
 	if err != nil {
 		return nil, err
 	}
-	res, err := cl.cl.Do(req)
+	res, err := cl.cl.Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -198,27 +210,6 @@ func (cl *Client) Get(ctx context.Context, paths ...string) ([]byte, error) {
 		return nil, fmt.Errorf("status != %d", http.StatusOK)
 	}
 	return io.ReadAll(res.Body)
-}
-
-// walk walks the path.
-func (cl *Client) walk(ctx context.Context, pathstr string, item *Item, fn WalkFunc) error {
-	if !item.IsDir() {
-		return fn(item.Href, item, nil)
-	}
-	urlstr, _, err := cl.Href()
-	if err != nil {
-		return err
-	}
-	items, err := cl.list(ctx, urlstr, item.Href, true)
-	if e := fn(item.Href, item, err); err != nil || e != nil {
-		return e
-	}
-	for _, item := range items {
-		if err := cl.walk(ctx, item.Href, &item, fn); err != nil && err != SkipDir {
-			return err
-		}
-	}
-	return nil
 }
 
 // Walk walks the root.
@@ -247,6 +238,37 @@ func (cl *Client) Walk(ctx context.Context, root string, fn WalkFunc) error {
 		return nil
 	}
 	return err
+}
+
+// walk walks the path.
+func (cl *Client) walk(ctx context.Context, pathstr string, item *Item, fn WalkFunc) error {
+	if !item.IsDir() {
+		return fn(item.Href, item, nil)
+	}
+	urlstr, _, err := cl.Href()
+	if err != nil {
+		return err
+	}
+	items, err := cl.list(ctx, urlstr, item.Href, true)
+	if e := fn(item.Href, item, err); err != nil || e != nil {
+		return e
+	}
+	for _, item := range items {
+		if err := cl.walk(ctx, item.Href, &item, fn); err != nil && err != SkipDir {
+			return err
+		}
+	}
+	return nil
+}
+
+// Href returns the href path for the URL combined with paths.
+func (cl *Client) Href(paths ...string) (string, string, error) {
+	u, err := url.Parse(cl.URL)
+	if err != nil {
+		return "", "", err
+	}
+	u = u.JoinPath(paths...)
+	return u.String(), u.EscapedPath(), nil
 }
 
 // Item is a item.
